@@ -62,9 +62,13 @@ static void encoder_task(void *arg) {
   }
 }
 static void communications_task(void *arg) {
-  (void)arg;
+  (void)arg; rover_encoder_t encoder_sample;
   for (;;) {
-    /* TODO: execute micro-ROS executor, publish queues and enqueue received commands. */
+    while (xQueueReceive(encoder_queue, &encoder_sample, 0) == pdPASS) {
+      (void)encoder_sample;
+      /* TODO: publish encoder samples through micro-ROS. */
+    }
+    /* TODO: execute micro-ROS executor, publish IMU queue and enqueue received commands. */
     xEventGroupSetBits(system_events,EVENT_LINK_OK);
     vTaskDelay(pdMS_TO_TICKS(5));
   }
