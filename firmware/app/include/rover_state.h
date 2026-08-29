@@ -1,67 +1,91 @@
-#ifndef ROVER_SAFETY_H
-#define ROVER_SAFETY_H
+#ifndef ROVER_STATE_H
+#define ROVER_STATE_H
 
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "rover_state.h"
 
 /*
  *==========================================================================*
- *                           FAULT FLAGS                                    *
+ *                           ROVER MODES                                   *
  *==========================================================================*
- *
- * Each fault occupies one bit.
- *
- * This allows multiple faults to exist simultaneously.
- *
- * Example:
- *
- *     LOW_BATTERY | SENSOR
- *
- * becomes:
- *
- *     00000001
- *   | 00000100
- *     --------
- *     00000101
  */
 
-#define ROVER_FAULT_NONE              (0UL)
-#define ROVER_FAULT_COMMAND_TIMEOUT   (1UL << 0U)
-#define ROVER_FAULT_LOW_BATTERY       (1UL << 1U)
-#define ROVER_FAULT_OVERTEMP          (1UL << 2U)
-#define ROVER_FAULT_SENSOR            (1UL << 3U)
-#define ROVER_FAULT_LINK              (1UL << 4U)
+typedef enum
+{
+    ROVER_MODE_BOOT = 0,
+    ROVER_MODE_SAFE,
+    ROVER_MODE_READY,
+    ROVER_MODE_ACTIVE,
+    ROVER_MODE_FAULT
+
+} rover_mode_t;
 
 
 /*
- * Evaluate all safety conditions.
- *
- * Returns a bitmask containing all currently detected faults.
+ *==========================================================================*
+ *                          ROVER COMMAND                                  *
+ *==========================================================================*
  */
-uint32_t rover_safety_evaluate(
-    uint32_t now,
-    const rover_command_t *cmd,
-    float battery,
-    float temp,
-    bool sensors_ok,
-    bool link_ok
+
+typedef struct
+{
+    float linear_mps;
+    float angular_rps;
+
+    /*
+     * Timestamp of the last valid command.
+     *
+     * Used by the safety supervisor to detect communication timeout.
+     */
+    uint32_t received_at_ms;
+
+} rover_command_t;
+
+
+/*
+ *==========================================================================*
+ *                           ROVER STATUS                                  *
+ *==========================================================================*
+ */
+
+typedef struct
+{
+    rover_mode_t mode;
+
+    float battery_v;
+    float board_temp_c;
+
+    uint32_t fault_flags;
+
+    /*
+     * Incremented periodically by the safety task.
+     *
+     * Used for diagnostics/watchdog supervision.
+     */
+    uint32_t heartbeat;
+
+} rover_status_t;
+
+
+/*
+ *==========================================================================*
+ *                          PUBLIC API                                     *
+ *==========================================================================*
+ */
+
+void rover_state_init(void);
+
+void rover_state_set_command(
+    const rover_command_t *command
 );
 
+rover_command_t rover_state_get_command(void);
 
-/*
- * Determine whether the current fault set requires
- * the motors to stop.
- */
-bool rover_safety_requires_stop(uint32_t faults);
+void rover_state_set_status(
+    const rover_status_t *status
+);
 
+rover_status_t rover_state_get_status(void);
 
-/*
- * Optional helper functions.
- *
- * These make the safety logic easier to test and understand.
- */
-bool rover_safety_has_fault(uint32_t faults, uint32_t fault);
-
-#endif /* ROVER_SAFETY_H */
+#endif /* ROVER_STATE_H */
