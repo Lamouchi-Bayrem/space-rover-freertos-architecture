@@ -1,11 +1,15 @@
+
 #ifndef ROVER_CONFIG_H
 #define ROVER_CONFIG_H
-#define ROVER_STATE_MUTEX_TIMEOUT_MS    5U
+
+
 /*
- *==========================================================================*
- *                           TASK STACK SIZES                               *
- *==========================================================================*
+ * ==========================================================================
+ * FreeRTOS Task Configuration
+ * ==========================================================================
  */
+
+/* Stack sizes are expressed in FreeRTOS StackType_t units. */
 
 #define ROVER_SAFETY_STACK_SIZE       384U
 #define ROVER_CONTROL_STACK_SIZE      512U
@@ -14,12 +18,6 @@
 #define ROVER_COMMS_STACK_SIZE       1024U
 #define ROVER_TELEMETRY_STACK_SIZE    512U
 
-
-/*
- *==========================================================================*
- *                           TASK PRIORITIES                                *
- *==========================================================================*
- */
 
 #define ROVER_SAFETY_TASK_PRIORITY       5U
 #define ROVER_CONTROL_TASK_PRIORITY      4U
@@ -30,9 +28,9 @@
 
 
 /*
- *==========================================================================*
- *                              PERIODS                                     *
- *==========================================================================*
+ * ==========================================================================
+ * Task Periods
+ * ==========================================================================
  */
 
 #define ROVER_SAFETY_PERIOD_MS          20U
@@ -43,47 +41,75 @@
 
 
 /*
- *==========================================================================*
- *                            TIMEOUTS                                      *
- *==========================================================================*
+ * ==========================================================================
+ * Safety Timeouts
+ * ==========================================================================
  */
 
-/*
- * Maximum allowed time between valid IMU samples.
- */
+/* Maximum allowed age of an IMU measurement. */
 #define ROVER_IMU_TIMEOUT_MS            100U
 
-/*
- * Maximum allowed time between valid encoder samples.
- */
+/* Maximum allowed age of an encoder measurement. */
 #define ROVER_ENCODER_TIMEOUT_MS        100U
 
-/*
- * Maximum allowed time since the last valid command.
- *
- * If exceeded, communication is considered lost.
- */
+/* Maximum allowed age of a valid command. */
 #define ROVER_COMMAND_TIMEOUT_MS        500U
 
 
 /*
- *==========================================================================*
- *                              QUEUES                                      *
- *==========================================================================*
+ * ==========================================================================
+ * Safety Thresholds
+ * ==========================================================================
  */
 
 /*
- * Latest-value queues.
+ * Minimum allowed battery voltage.
  *
- * Length 1 is intentional because stale sensor data should be
- * overwritten by the newest measurement.
+ * Replace this value with the actual value for your battery system.
+ */
+#define ROVER_LOW_BATTERY_V             10.5F
+
+
+/*
+ * Maximum allowed board temperature.
+ *
+ * Replace this value with the actual hardware limit.
+ */
+#define ROVER_MAX_BOARD_TEMP_C          80.0F
+
+
+/*
+ * ==========================================================================
+ * State Manager
+ * ==========================================================================
+ */
+
+/*
+ * Maximum time the state manager waits for its mutex.
+ */
+#define ROVER_STATE_MUTEX_TIMEOUT_MS      5U
+
+
+/*
+ * ==========================================================================
+ * Queue Configuration
+ * ==========================================================================
+ */
+
+/*
+ * Single-element queues are intentional.
+ *
+ * They represent "latest sample" buffers.
  */
 #define ROVER_QUEUE_LENGTH_IMU            1U
 #define ROVER_QUEUE_LENGTH_ENCODER        1U
 
+
 /*
- * Command queue may contain multiple commands.
+ * Commands can temporarily accumulate.
  */
 #define ROVER_COMMAND_QUEUE_LENGTH        8U
 
+
 #endif /* ROVER_CONFIG_H */
+
