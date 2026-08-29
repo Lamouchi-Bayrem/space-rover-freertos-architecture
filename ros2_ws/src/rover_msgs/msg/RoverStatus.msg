@@ -1,0 +1,6 @@
+std_msgs/Header header
+float32 battery_voltage
+float32 board_temperature
+uint32 heartbeat
+uint8 operating_mode
+uint32 fault_flags

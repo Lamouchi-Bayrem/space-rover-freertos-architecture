@@ -1,0 +1,6 @@
+rover:
+  wheel_radius_m: 0.10
+  wheel_separation_m: 0.42
+  control_rate_hz: 100
+  command_timeout_ms: 500
+  battery_low_voltage: 10.5

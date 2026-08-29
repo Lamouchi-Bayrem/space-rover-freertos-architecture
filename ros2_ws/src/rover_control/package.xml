@@ -1,0 +1,1 @@
+<?xml version="1.0"?><package format="3"><name>rover_control</name><version>0.1.0</version><description>Rover command supervisor</description><maintainer email="maintainer@example.com">bayrem lamouchi</maintainer><license>MIT</license><buildtool_depend>ament_cmake</buildtool_depend><depend>rclcpp</depend><depend>geometry_msgs</depend></package>
