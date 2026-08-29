@@ -1,6 +1,6 @@
 #ifndef ROVER_CONFIG_H
 #define ROVER_CONFIG_H
-
+#define ROVER_STATE_MUTEX_TIMEOUT_MS    5U
 /*
  *==========================================================================*
  *                           TASK STACK SIZES                               *
