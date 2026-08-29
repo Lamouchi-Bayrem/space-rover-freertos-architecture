@@ -1,193 +1,199 @@
 /*
- * ==========================================================================
- * FreeRTOS Configuration Recommendations
- * ==========================================================================
+ * ============================================================================
+ * FreeRTOS Failure Hooks
+ * ============================================================================
  *
- * This file is NOT the actual FreeRTOSConfig.h.
+ * File:
+ *     firmware/config/freertos_hooks.c
  *
- * Copy the relevant definitions into the CubeMX-generated
- * FreeRTOSConfig.h for the STM32 target.
+ * Purpose:
+ *     Handle critical FreeRTOS failures.
  *
- * Target architecture:
- *     STM32 Cortex-M
- *     FreeRTOS
- *     Static memory allocation
- *     Safety-oriented rover application
+ * Failure conditions handled here:
+ *
+ *     1. Task stack overflow
+ *     2. Memory allocation failure
+ *     3. FreeRTOS assertion failure
+ *
+ * Safety philosophy:
+ *
+ *     Critical RTOS failure
+ *             |
+ *             v
+ *       Emergency stop
+ *             |
+ *             v
+ *      Disable interrupts
+ *             |
+ *             v
+ *        Fail-safe loop
+ *
+ * IMPORTANT:
+ *
+ *     Failure hooks must not perform blocking operations.
+ *
+ *     Do NOT:
+ *
+ *         - call printf()
+ *         - allocate memory
+ *         - wait on a mutex
+ *         - wait on a semaphore
+ *         - call vTaskDelay()
+ *         - depend on another task
+ *
+ * ============================================================================
  */
 
-#ifndef FREERTOS_CONFIG_RECOMMENDED_H
-#define FREERTOS_CONFIG_RECOMMENDED_H
+#include "FreeRTOS.h"
+#include "task.h"
+
+#include "rover_hal.h"
 
 
-/* ==========================================================================
- * Scheduler
+/* ============================================================================
+ * Private Failure Handler
  * ========================================================================== */
 
-/*
- * Enable preemptive scheduling.
+/**
+ * @brief Enter the rover fail-safe state.
  *
- * Higher-priority tasks can interrupt lower-priority tasks.
+ * This function is used when the FreeRTOS kernel detects a critical
+ * configuration/runtime failure.
+ *
+ * The emergency stop must be implemented at the HAL level without
+ * depending on the FreeRTOS scheduler.
  */
-#define configUSE_PREEMPTION                    1
+static void rover_freertos_fail_safe(void)
+{
+    /*
+     * Force the motor outputs into their safe state.
+     *
+     * IMPORTANT:
+     *
+     * rover_hal_emergency_stop() must NOT use:
+     *
+     *     mutexes
+     *     queues
+     *     task notifications
+     *     delays
+     *     dynamic memory
+     *
+     * It should directly force the motor control hardware to a
+     * non-driving state.
+     */
+    rover_hal_emergency_stop();
 
 
-/*
- * Allow tasks of equal priority to share CPU time.
- */
-#define configUSE_TIME_SLICING                  1
+    /*
+     * Stop normal interrupt processing.
+     *
+     * The firmware is no longer considered operational.
+     */
+    taskDISABLE_INTERRUPTS();
 
 
-/*
- * Use 32-bit TickType_t.
- *
- * Important for long-running embedded systems.
- */
-#define configUSE_16_BIT_TICKS                  0
+    /*
+     * Remain permanently in the fail-safe state.
+     *
+     * A watchdog can be used to reset the MCU if desired.
+     */
+    for (;;)
+    {
+        /*
+         * Intentionally empty.
+         *
+         * Possible future diagnostic action:
+         *
+         *     - fault LED
+         *     - retained fault code
+         *     - watchdog reset
+         */
+    }
+}
 
 
-/*
- * 1 ms RTOS tick.
- *
- * This gives good timing resolution for:
- *
- *     Safety
- *     Control
- *     Sensor
- *     Communication
- *
- * tasks.
- */
-#define configTICK_RATE_HZ                      1000U
-
-
-/*
- * Maximum number of task priorities.
- *
- * Your rover currently uses priorities:
- *
- *     Safety       = 5
- *     Control      = 4
- *     IMU          = 3
- *     Encoder      = 3
- *     Communications = 2
- *     Telemetry    = 1
- */
-#define configMAX_PRIORITIES                    8U
-
-
-/* ==========================================================================
- * Memory Management
+/* ============================================================================
+ * Stack Overflow Hook
  * ========================================================================== */
 
-/*
- * Static allocation is REQUIRED by the rover architecture.
+/**
+ * @brief FreeRTOS stack overflow callback.
  *
- * Tasks, queues and event groups are statically allocated.
- */
-#define configSUPPORT_STATIC_ALLOCATION         1
-
-
-/*
- * Dynamic allocation is disabled.
+ * Called by FreeRTOS when a task stack overflow is detected.
  *
- * This prevents unexpected heap usage at runtime.
+ * @param task Task handle associated with the failure.
+ * @param name Task name.
  */
-#define configSUPPORT_DYNAMIC_ALLOCATION        0
+void vApplicationStackOverflowHook(
+    TaskHandle_t task,
+    char *name)
+{
+    /*
+     * The parameters are intentionally unused for now.
+     *
+     * They can later be stored in a diagnostic structure before
+     * entering the fail-safe state.
+     */
+    (void)task;
+    (void)name;
 
 
-/* ==========================================================================
- * Safety / Diagnostics
+    /*
+     * A stack overflow is considered a critical firmware failure.
+     */
+    rover_freertos_fail_safe();
+}
+
+
+/* ============================================================================
+ * Malloc Failure Hook
  * ========================================================================== */
 
-/*
- * Enable the strongest FreeRTOS stack overflow check.
- */
-#define configCHECK_FOR_STACK_OVERFLOW          2
-
-
-/*
- * Called when a dynamic allocation fails.
+/**
+ * @brief FreeRTOS allocation failure callback.
  *
- * Although dynamic allocation is disabled for the application,
- * keeping the hook enabled provides an additional safety mechanism
- * if some FreeRTOS component unexpectedly attempts allocation.
+ * The rover application disables dynamic allocation.
+ *
+ * Therefore reaching this function indicates an unexpected configuration
+ * or library/component attempting to allocate memory dynamically.
  */
-#define configUSE_MALLOC_FAILED_HOOK            1
+void vApplicationMallocFailedHook(void)
+{
+    rover_freertos_fail_safe();
+}
 
 
-/* ==========================================================================
- * Synchronization
+/* ============================================================================
+ * FreeRTOS Assertion Handler
  * ========================================================================== */
 
-/*
- * Required for the rover state mutex.
- */
-#define configUSE_MUTEXES                       1
-
-
-/*
- * Recursive mutexes are not required.
- */
-#define configUSE_RECURSIVE_MUTEXES             0
-
-
-/*
- * Useful for future synchronization between drivers/tasks.
- */
-#define configUSE_COUNTING_SEMAPHORES            1
-
-
-/* ==========================================================================
- * Task Notifications
- * ========================================================================== */
-
-/*
- * Used by the IMU interrupt.
+/**
+ * @brief Application-level FreeRTOS assertion handler.
  *
- * ISR:
+ * This function can be connected to configASSERT().
  *
- *     vTaskNotifyGiveFromISR()
+ * Example in FreeRTOSConfig.h:
  *
- * Task:
+ *     #define configASSERT(x) rover_freertos_assert((x))
  *
- *     ulTaskNotifyTake()
+ * @param condition Assertion condition.
  */
-#define configUSE_TASK_NOTIFICATIONS             1
+void rover_freertos_assert(
+    BaseType_t condition)
+{
+    /*
+     * Nothing happens when the assertion is valid.
+     */
+    if (condition != pdFALSE)
+    {
+        return;
+    }
 
 
-/* ==========================================================================
- * Software Timers
- * ========================================================================== */
-
-#define configUSE_TIMERS                         1
-
-#define configTIMER_TASK_PRIORITY                2U
-
-#define configTIMER_QUEUE_LENGTH                 8U
-
-#define configTIMER_TASK_STACK_DEPTH             512U
-
-
-/* ==========================================================================
- * Required API Functions
- * ========================================================================== */
-
-/*
- * Required by the rover periodic tasks.
- */
-#define INCLUDE_vTaskDelay                       1
-
-#define INCLUDE_vTaskDelayUntil                 1
-
-
-/*
- * Required for runtime stack monitoring.
- *
- * Example:
- *
- *     uxTaskGetStackHighWaterMark()
- */
-#define INCLUDE_uxTaskGetStackHighWaterMark      1
-
-
-#endif /* FREERTOS_CONFIG_RECOMMENDED_H */
+    /*
+     * Invalid assertion:
+     *
+     * Enter the rover fail-safe state.
+     */
+    rover_freertos_fail_safe();
+}
